@@ -3,92 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تتبع واتساب المباشر</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>ربط واتساب - كرولس</title>
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; }
-        .qr-container { background: white; border-radius: 20px; padding: 40px; max-width: 400px; margin: 20px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-        #qrCode { width: 250px; height: 250px; margin: 20px auto; border: 3px solid #25D366; border-radius: 15px; display: flex; align-items: center; justify-content: center; background: #f0f0f0; }
-        #qrCode canvas { width: 100% !important; height: 100% !important; }
-        .status.connected { background: #d4edda; color: #155724; }
-        .hidden { display: none; }
+        body { font-family: sans-serif; background: #075E54; color: white; text-align: center; padding: 20px; }
+        .card { background: white; color: #333; padding: 20px; border-radius: 20px; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .qr-img { width: 220px; border: 1px solid #eee; margin: 15px 0; }
+        .pairing-box { background: #f0f0f0; padding: 15px; border-radius: 10px; margin-top: 15px; border: 2px dashed #25D366; }
+        #code-display { font-size: 32px; font-weight: bold; color: #128C7E; letter-spacing: 5px; margin: 10px 0; }
+        input { width: 80%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; margin-bottom: 10px; text-align: center; }
+        button { background: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
-<body class="bg-gradient-to-br from-green-500 to-green-600 min-h-screen p-4">
-    <div class="max-w-4xl mx-auto">
-        <div class="text-center text-white mb-8">
-            <h1 class="text-4xl font-bold mb-4"><i class="fab fa-whatsapp text-5xl ml-4"></i>تتبع واتساب</h1>
-            <p class="text-xl">مراقبة النشاط لحظياً عبر السحاب</p>
-        </div>
+<body>
 
-        <div id="qrContainer" class="qr-container text-center">
-            <div id="qrCode"><p class="text-gray-400">جاري طلب الكود...</p></div>
-            <div class="mt-4 text-sm text-gray-600">
-                <p>قم بمسح الكود لربط الحساب بالسيرفر</p>
-            </div>
-        </div>
+    <h2>توصيل واتساب 📱</h2>
 
-        <div id="statsContainer" class="hidden bg-white rounded-3xl p-8 shadow-2xl mb-8">
-            <div id="status" class="status text-center p-4 rounded-2xl font-bold text-lg mb-8 bg-gray-100">
-                <i class="fas fa-check-circle"></i> الحساب متصل الآن
-            </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-                <div class="bg-gray-50 p-4 rounded-xl text-center">
-                    <h3 id="messagesSent" class="text-2xl font-bold text-green-600">0</h3>
-                    <p class="text-xs">مرسلة</p>
-                </div>
-                <div class="bg-gray-50 p-4 rounded-xl text-center">
-                    <h3 id="messagesReceived" class="text-2xl font-bold text-blue-600">0</h3>
-                    <p class="text-xs">مستلمة</p>
-                </div>
-                <div id="onlineTimer" class="bg-gray-50 p-4 rounded-xl text-center">
-                    <h3 class="text-2xl font-bold text-purple-600">00:00</h3>
-                    <p class="text-xs">وقت الاتصال</p>
-                </div>
-                <div class="bg-gray-50 p-4 rounded-xl text-center">
-                    <h3 class="text-2xl font-bold text-orange-600">نشط</h3>
-                    <p class="text-xs">الحالة</p>
-                </div>
-            </div>
-            <div class="bg-gray-50 p-6 rounded-2xl">
-                <h3 class="font-bold mb-4">📋 السجل المباشر</h3>
-                <div id="activityLog" class="space-y-3 max-h-60 overflow-y-auto"></div>
-            </div>
+    <div class="card">
+        <h3>1. امسح الكود</h3>
+        <img id="qr" class="qr-img" src="" alt="جاري تحميل QR...">
+        
+        <hr>
+
+        <h3>2. أو اربط بالرقم</h3>
+        <p style="font-size: 12px;">دخل رقمك (بالكود الدولي) عشان يظهر الكود</p>
+        <input type="text" id="phone" placeholder="2010xxxxxxxx">
+        <button onclick="requestCode()">إظهار كود الرقم</button>
+        
+        <div class="pairing-box">
+            <p>كود الربط الخاص بك:</p>
+            <div id="code-display">- - - - - - - -</div>
         </div>
     </div>
 
     <script>
         const socket = io();
-        socket.on('qr_code', (qr) => {
-            const box = document.getElementById('qrCode');
-            box.innerHTML = '';
-            QRCode.toCanvas(qr, { width: 250 }, (err, canvas) => {
-                if (!err) box.appendChild(canvas);
-            });
+        
+        function requestCode() {
+            const num = document.getElementById('phone').value;
+            if(num) {
+                document.getElementById('code-display').innerText = "جاري الطلب...";
+                socket.emit('requestPairingCode', num);
+            }
+        }
+
+        socket.on('qr', (url) => { document.getElementById('qr').src = url; });
+        
+        socket.on('pairingCode', (code) => {
+            // الكود اللي هيظهر هنا هو اللي هتكتبه في موبايلك
+            document.getElementById('code-display').innerText = code;
         });
 
         socket.on('ready', () => {
-            document.getElementById('qrContainer').classList.add('hidden');
-            document.getElementById('statsContainer').classList.remove('hidden');
-        });
-
-        socket.on('new_activity', (data) => {
-            const log = document.getElementById('activityLog');
-            const time = new Date().toLocaleTimeString('ar-EG');
-            
-            if(data.type === 'sent') {
-                document.getElementById('messagesSent').innerText = parseInt(document.getElementById('messagesSent').innerText) + 1;
-            } else {
-                document.getElementById('messagesReceived').innerText = parseInt(document.getElementById('messagesReceived').innerText) + 1;
-            }
-
-            log.innerHTML = `<div class="bg-white p-3 rounded-lg shadow-sm border-r-4 border-green-500 flex justify-between">
-                <span>${data.type === 'sent' ? '📤' : '📥'} ${data.body}</span>
-                <small class="text-gray-400">${time}</small>
-            </div>` + log.innerHTML;
+            document.body.innerHTML = "<h1 style='color:white'>✅ مبروك! واتساب متصل الآن</h1>";
         });
     </script>
 </body>
