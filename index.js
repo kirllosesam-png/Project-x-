@@ -1,13 +1,17 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode');
 const express = require('express');
+const socketIO = require('socket.io');
 const http = require('http');
-const socketIo = require('socket.io');
-const qrcodeTerminal = require('qrcode-terminal');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIO(server);
+const port = process.env.PORT || 5000;
 
+app.use(express.static('public'));
+
+// إعدادات العميل مع تعديلات خاصة لـ Replit
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -16,49 +20,31 @@ const client = new Client({
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process', // مهم جداً لتقليل استهلاك الرامات
             '--disable-gpu'
         ],
-        // في Render لا نضع مسار يدوي، هو سيتعرف عليه تلقائياً
+        // السطر اللي تحت ده بيخلي الكود يدور على المتصفح في المسار الافتراضي لـ Replit
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser'
     }
 });
 
 client.on('qr', (qr) => {
-    qrcodeTerminal.generate(qr, { small: true });
-    io.emit('qr_code', qr);
-});
-
-client.on('ready', () => {
-    console.log('✅ واتساب جاهز على السيرفر!');
-    io.emit('ready', true);
-});
-
-client.on('message', async (msg) => {
-    const contact = await msg.getContact();
-    io.emit('new_activity', {
-        type: 'receive',
-        from: contact.pushname || msg.from,
-        body: msg.body
+    console.log('QR RECEIVED', qr);
+    qrcode.toDataURL(qr, (err, url) => {
+        io.emit('qr', url);
     });
 });
 
-client.on('message_create', async (msg) => {
-    if (msg.fromMe) {
-        io.emit('new_activity', {
-            type: 'sent',
-            to: 'أنا',
-            body: msg.body
-        });
-    }
+client.on('ready', () => {
+    console.log('واتساب جاهز للعمل!');
+    io.emit('ready', 'Connected');
 });
 
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-});
+client.initialize().catch(err => console.error('خطأ في التشغيل:', err));
 
-// Render يحدد البورت تلقائياً عبر متغير بيئة
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 السيرفر يعمل على بورت: ${PORT}`);
+server.listen(port, () => {
+    console.log(`السيرفر شغال على الرابط: http://localhost:${port}`);
 });
-
-client.initialize();
